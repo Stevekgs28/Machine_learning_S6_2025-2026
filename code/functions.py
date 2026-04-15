@@ -1,89 +1,239 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
+import seaborn as sns
 
 
-def print_data(df) :
-    # To visualize the data
-    for index, row in df.iterrows():
+DEFAULT_NUMERIC_COLUMNS = [
+    "Year",
+    "Financial Loss (in Million $)",
+    "Number of Affected Users",
+    "Incident Resolution Time (in Hours)",
+]
+
+DEFAULT_UNKNOWN_TOKENS = {"unknown", "n/a", "na", "none", "null", "?", "nan", ""}
+
+
+def preprocess_dataset(
+    df, numeric_columns=None, unknown_tokens=None, keep_unknown_as_category=True
+):
+    """
+    Clean the full dataset and return a data quality report.
+
+    Returns:
+        tuple[pd.DataFrame, dict]: (cleaned_dataframe, quality_report)
+    """
+    df_clean = df.copy()
+    numeric_columns = numeric_columns or [
+        col for col in DEFAULT_NUMERIC_COLUMNS if col in df_clean.columns
+    ]
+    unknown_tokens = {token.strip().lower() for token in (unknown_tokens or DEFAULT_UNKNOWN_TOKENS)}
+
+    initial_rows, initial_cols = df_clean.shape
+
+    duplicate_count = int(df_clean.duplicated().sum())
+    if duplicate_count:
+        df_clean = df_clean.drop_duplicates().reset_index(drop=True)
+
+    categorical_columns = list(df_clean.select_dtypes(include=["object", "category"]).columns)
+    unknown_like_counts = {}
+
+    for col in categorical_columns:
+        as_text = df_clean[col].astype(str).str.strip()
+        normalized = as_text.str.lower()
+        mask_unknown = normalized.isin(unknown_tokens)
+        unknown_like_counts[col] = int(mask_unknown.sum())
+
+        if keep_unknown_as_category:
+            df_clean.loc[mask_unknown, col] = "Unknown"
+        else:
+            df_clean.loc[mask_unknown, col] = pd.NA
+
+    for col in numeric_columns:
+        df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+
+    missing_values_per_column = df_clean.isna().sum().to_dict()
+    categorical_cardinality = {
+        col: int(df_clean[col].nunique(dropna=False)) for col in categorical_columns
+    }
+
+    report = {
+        "initial_shape": {"rows": int(initial_rows), "columns": int(initial_cols)},
+        "final_shape": {"rows": int(df_clean.shape[0]), "columns": int(df_clean.shape[1])},
+        "rows_removed_by_duplicates": duplicate_count,
+        "numeric_columns_cast": numeric_columns,
+        "missing_values_per_column": missing_values_per_column,
+        "unknown_like_counts_per_column": unknown_like_counts,
+        "categorical_cardinality": categorical_cardinality,
+        "unknown_policy": "keep_as_category" if keep_unknown_as_category else "set_as_missing",
+    }
+    return df_clean, report
+
+
+def print_data_quality_report(report):
+    """Pretty-print the preprocessing quality report."""
+    initial = report["initial_shape"]
+    final = report["final_shape"]
+
+    print("\n========== DATA QUALITY REPORT ==========")
+    print(f"Initial shape: {initial['rows']} rows x {initial['columns']} columns")
+    print(f"Final shape:   {final['rows']} rows x {final['columns']} columns")
+    print(f"Rows removed due to duplicates: {report['rows_removed_by_duplicates']}")
+    print(f"Unknown policy: {report['unknown_policy']}")
+    print(f"Numeric columns cast: {report['numeric_columns_cast']}")
+
+    print("\nMissing values per column:")
+    for col, count in report["missing_values_per_column"].items():
+        print(f"  - {col}: {count}")
+
+    print("\nUnknown-like values per categorical column:")
+    for col, count in report["unknown_like_counts_per_column"].items():
+        print(f"  - {col}: {count}")
+
+    print("\nCategorical cardinality (unique values):")
+    for col, count in report["categorical_cardinality"].items():
+        print(f"  - {col}: {count}")
+    print("=========================================\n")
+
+
+def print_data(df):
+    """Display rows for quick debugging."""
+    for _, row in df.iterrows():
         print(row)
         print("", end="\n\n")
 
 
-def histogram_attack_per_country(df) :
-    # Compter le nombre d'attaques par pays
-    attacks_per_country = df["Country"].value_counts()
-
-    # Histogramme (bar chart en réalité)
-    plt.figure(figsize=(12, 6))
-    attacks_per_country.plot(kind="bar")
-
-    plt.title("Number of Cyber Attacks per Country")
-    plt.xlabel("Country")
-    plt.ylabel("Number of Attacks")
-
-    plt.xticks(rotation=45)
+def _safe_save_show(filename):
     plt.tight_layout()
-    plt.yscale("log", base=10)
-    plt.savefig("histogram_attack_per_country.png")
-    plt.show()
+    plt.savefig(filename)
+    backend = plt.get_backend().lower()
+    if "agg" not in backend:
+        plt.show()
+    plt.close()
 
 
-def histogram_attack_per_industry(df) :
-    attacks_per_industry = df["Target Industry"].value_counts()
+def plot_top_categories(df, column, top_n=15, log_scale=False, filename=None, title=None):
+    """Plot a top-N bar chart for a categorical feature."""
+    if column not in df.columns:
+        return
 
+    counts = df[column].value_counts(dropna=False).head(top_n)
     plt.figure(figsize=(12, 6))
-    attacks_per_industry.plot(kind="bar")
+    counts.plot(kind="bar")
+    plt.title(title or f"Top {top_n} categories - {column}")
+    plt.xlabel(column)
+    plt.ylabel("Count")
+    plt.xticks(rotation=45, ha="right")
+    if log_scale:
+        plt.yscale("log", base=10)
+    _safe_save_show(filename or f"histogram_{column.lower().replace(' ', '_')}.png")
 
-    plt.title("Number of Cyber Attacks per Industry")
-    plt.xlabel("Industry")
-    plt.ylabel("Number of Attacks")
 
-    plt.xticks(rotation=45)
-    plt.yscale("log", base=10)
-    plt.tight_layout()
-    plt.savefig("histogram_attack_per_industry.png")
-    plt.show()
-    
+def histogram_attack_per_country(df):
+    plot_top_categories(
+        df,
+        "Country",
+        top_n=20,
+        log_scale=True,
+        filename="histogram_attack_per_country.png",
+        title="Number of Cyber Attacks per Country (Top 20)",
+    )
+
+
+def histogram_attack_per_industry(df):
+    plot_top_categories(
+        df,
+        "Target Industry",
+        top_n=20,
+        log_scale=True,
+        filename="histogram_attack_per_industry.png",
+        title="Number of Cyber Attacks per Industry (Top 20)",
+    )
+
 
 def histogram_financial_loss(df):
-    # Somme des pertes par pays
-    loss_per_country = df.groupby("Country")["Financial Loss (in Million $)"].sum()
+    """Plot total financial loss by country."""
+    if "Country" not in df.columns or "Financial Loss (in Million $)" not in df.columns:
+        return
 
-    # Trier
-    loss_per_country = loss_per_country.sort_values(ascending=False)
-
-    # Graphique
+    loss_per_country = (
+        df.groupby("Country", dropna=False)["Financial Loss (in Million $)"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(20)
+    )
     plt.figure(figsize=(12, 6))
     loss_per_country.plot(kind="bar")
-
-    plt.title("Total Financial Loss per Country")
+    plt.title("Total Financial Loss per Country (Top 20)")
     plt.xlabel("Country")
     plt.ylabel("Financial Loss (in Million $)")
+    plt.xticks(rotation=45, ha="right")
+    plt.yscale("log", base=10)
+    _safe_save_show("histogram_financial_loss.png")
 
-    plt.xticks(rotation=45)
-    plt.yscale("log", base=10)  # échelle logarithmique
-    plt.tight_layout()
-    plt.savefig("histogram_financial_loss.png")
-    plt.show()
-    
+
+def plot_numeric_distributions(df, numeric_columns=None, bins=30):
+    """Create histogram and boxplot for each numeric feature."""
+    if numeric_columns is None:
+        numeric_columns = list(df.select_dtypes(include=["number"]).columns)
+    else:
+        numeric_columns = [col for col in numeric_columns if col in df.columns]
+
+    if not numeric_columns:
+        return
+
+    n = len(numeric_columns)
+    fig, axes = plt.subplots(n, 2, figsize=(12, max(4, 3 * n)))
+    if n == 1:
+        axes = [axes]
+
+    for i, col in enumerate(numeric_columns):
+        sns.histplot(df[col].dropna(), bins=bins, kde=True, ax=axes[i][0])
+        axes[i][0].set_title(f"Histogram - {col}")
+        axes[i][0].set_xlabel(col)
+
+        sns.boxplot(y=df[col], ax=axes[i][1])
+        axes[i][1].set_title(f"Boxplot - {col}")
+        axes[i][1].set_ylabel(col)
+
+    fig.tight_layout()
+    fig.savefig("numeric_distributions.png")
+    backend = plt.get_backend().lower()
+    if "agg" not in backend:
+        plt.show()
+    plt.close(fig)
+
 
 def boxplots_analysis(df):
+    """Backward-compatible wrapper for numeric boxplots."""
+    plot_numeric_distributions(
+        df,
+        numeric_columns=[
+            "Number of Affected Users",
+            "Incident Resolution Time (in Hours)",
+        ],
+    )
 
-    plt.figure(figsize=(12, 5))
 
-    # Boxplot 1 : Number of Affected Users
-    plt.subplot(1, 2, 1)
-    sns.boxplot(y=df["Number of Affected Users"])
-    plt.title("Number of Affected Users")
+def correlation(df):
+    """Generate Pearson and Spearman correlation heatmaps on numeric columns."""
+    num_df = df.select_dtypes(include=["number"]).copy()
 
-    
-    # Boxplot 2 : Incident Resolution Time
-    plt.subplot(1, 2, 2)
-    sns.boxplot(y=df["Incident Resolution Time (in Hours)"])
-    plt.title("Incident Resolution Time (in Hours)")
-    plt.tight_layout()
-    plt.savefig("boxplots.png")
+    if num_df.shape[1] < 2:
+        print("Not enough numeric columns to compute correlations.")
+        return
 
-    plt.show()
+    corr_pearson = num_df.corr(method="pearson")
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        corr_pearson, annot=True, fmt=".2f", cmap="coolwarm", center=0, vmin=-1, vmax=1
+    )
+    plt.title("Heatmap Correlations - Pearson")
+    _safe_save_show("heatmap_pearson.png")
+
+    corr_spearman = num_df.corr(method="spearman")
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        corr_spearman, annot=True, fmt=".2f", cmap="viridis", center=0, vmin=-1, vmax=1
+    )
+    plt.title("Heatmap Correlations - Spearman")
+    _safe_save_show("heatmap_spearman.png")
