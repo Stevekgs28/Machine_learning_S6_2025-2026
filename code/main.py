@@ -30,4 +30,5 @@ histogram_financial_loss(df_clean)
 # Generic numeric distributions
 plot_numeric_distributions(df_clean)
 
-correlation(df_clean)
+# Correlation heatmaps (numeric + enriched with encoded categories)
+plot_correlation_heatmaps(df_clean)

@@ -187,7 +187,7 @@ def plot_numeric_distributions(df, numeric_columns=None, bins=30):
         axes = [axes]
 
     for i, col in enumerate(numeric_columns):
-        sns.histplot(df[col].dropna(), bins=bins, kde=True, ax=axes[i][0])
+        sns.histplot(df[col].dropna(), bins=bins, kde=False, ax=axes[i][0])
         axes[i][0].set_title(f"Histogram - {col}")
         axes[i][0].set_xlabel(col)
 
@@ -203,6 +203,127 @@ def plot_numeric_distributions(df, numeric_columns=None, bins=30):
     plt.close(fig)
 
 
+def _keep_top_categories(series, top_n):
+    """Keep top-N categories and group others as 'Other'."""
+    if top_n is None or top_n <= 0:
+        return series
+    top_values = series.value_counts(dropna=False).head(top_n).index
+    return series.where(series.isin(top_values), other="Other")
+
+
+def _plot_correlation_heatmap(corr_df, title, filename, figsize=(12, 10)):
+    """Render and save a single correlation heatmap."""
+    if corr_df.empty:
+        return
+
+    plt.figure(figsize=figsize)
+    sns.heatmap(
+        corr_df,
+        cmap="coolwarm",
+        vmin=-1,
+        vmax=1,
+        center=0,
+        annot=True,
+        fmt=".2f",
+        annot_kws={"size": 8},
+        square=False,
+        linewidths=0.2,
+        cbar=True,
+    )
+    plt.title(title)
+    plt.xticks(rotation=45, ha="right")
+    plt.yticks(rotation=0)
+    _safe_save_show(filename)
+
+
+def plot_correlation_heatmaps(
+    df,
+    numeric_columns=None,
+    categorical_columns=None,
+    top_n_country=10,
+    top_n_other_categories=8,
+):
+    """
+    Generate correlation heatmaps:
+    - Numeric only: Pearson + Spearman
+    - Enriched (numeric + encoded categories): Pearson + Spearman
+    """
+    if numeric_columns is None:
+        numeric_columns = [
+            col
+            for col in DEFAULT_NUMERIC_COLUMNS
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col])
+        ]
+    else:
+        numeric_columns = [
+            col
+            for col in numeric_columns
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col])
+        ]
+
+    if len(numeric_columns) < 2:
+        return
+
+    # Numeric-only heatmaps
+    numeric_df = df[numeric_columns]
+    pearson_numeric = numeric_df.corr(method="pearson")
+    spearman_numeric = numeric_df.corr(method="spearman")
+    _plot_correlation_heatmap(
+        pearson_numeric,
+        "Correlation Heatmap (Pearson) - Numeric Features",
+        "heatmap_pearson.png",
+    )
+    _plot_correlation_heatmap(
+        spearman_numeric,
+        "Correlation Heatmap (Spearman) - Numeric Features",
+        "heatmap_spearman.png",
+    )
+
+    # Enriched heatmaps with selected categorical features
+    if categorical_columns is None:
+        categorical_columns = [
+            "Attack Type",
+            "Target Industry",
+            "Security Vulnerability Type",
+            "Attack Source",
+            "Country",
+        ]
+
+    categorical_columns = [col for col in categorical_columns if col in df.columns]
+    if not categorical_columns:
+        return
+
+    cat_df = df[categorical_columns].copy()
+    for col in categorical_columns:
+        if col == "Country":
+            cat_df[col] = _keep_top_categories(cat_df[col], top_n_country)
+        else:
+            cat_df[col] = _keep_top_categories(cat_df[col], top_n_other_categories)
+
+    encoded_cat = pd.get_dummies(
+        cat_df,
+        columns=categorical_columns,
+        drop_first=False,
+        dummy_na=False,
+    )
+    enriched_df = pd.concat([numeric_df, encoded_cat], axis=1)
+
+    pearson_enriched = enriched_df.corr(method="pearson")
+    spearman_enriched = enriched_df.corr(method="spearman")
+    _plot_correlation_heatmap(
+        pearson_enriched,
+        "Correlation Heatmap (Pearson) - Numeric + Encoded Categories",
+        "heatmap_pearson_enriched.png",
+        figsize=(16, 14),
+    )
+    _plot_correlation_heatmap(
+        spearman_enriched,
+        "Correlation Heatmap (Spearman) - Numeric + Encoded Categories",
+        "heatmap_spearman_enriched.png",
+        figsize=(16, 14),
+    )
+
+
 def boxplots_analysis(df):
     """Backward-compatible wrapper for numeric boxplots."""
     plot_numeric_distributions(
@@ -213,27 +334,3 @@ def boxplots_analysis(df):
         ],
     )
 
-
-def correlation(df):
-    """Generate Pearson and Spearman correlation heatmaps on numeric columns."""
-    num_df = df.select_dtypes(include=["number"]).copy()
-
-    if num_df.shape[1] < 2:
-        print("Not enough numeric columns to compute correlations.")
-        return
-
-    corr_pearson = num_df.corr(method="pearson")
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(
-        corr_pearson, annot=True, fmt=".2f", cmap="coolwarm", center=0, vmin=-1, vmax=1
-    )
-    plt.title("Heatmap Correlations - Pearson")
-    _safe_save_show("heatmap_pearson.png")
-
-    corr_spearman = num_df.corr(method="spearman")
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(
-        corr_spearman, annot=True, fmt=".2f", cmap="viridis", center=0, vmin=-1, vmax=1
-    )
-    plt.title("Heatmap Correlations - Spearman")
-    _safe_save_show("heatmap_spearman.png")
