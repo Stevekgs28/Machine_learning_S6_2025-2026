@@ -1,6 +1,6 @@
 import pandas as pd
 
-from functions import (
+from diagrams import (
     plot_correlation_heatmaps,
     plot_high_impact_class_balance,
     plot_high_impact_rate_by_category,
