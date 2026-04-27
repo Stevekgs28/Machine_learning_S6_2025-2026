@@ -1,12 +1,14 @@
 archive.zip
 dataset.csv
 ML - projet (sujet).pdf
-./code/__pycache__/*
+code/__pycache__/*
 ./code/*.png
 
 # Exchange files
 .~*
 
 .codex
+
+resultat_shell.txt
 
 rapport.*
