@@ -215,3 +215,9 @@ def build_feature_preprocessor(X, scale_numeric=True):
             ("cat", categorical_pipeline, categorical_columns),
         ]
     )
+
+def print_data(df):
+    """Display rows for quick debugging."""
+    for _, row in df.iterrows():
+        print(row)
+        print("", end="\n\n")
