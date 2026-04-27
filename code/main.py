@@ -1,4 +1,18 @@
-from functions import *
+import pandas as pd
+
+from functions import (
+    plot_correlation_heatmaps,
+    plot_high_impact_class_balance,
+    plot_high_impact_rate_by_category,
+    plot_numeric_distributions,
+)
+from preprocess import (
+    create_high_impact_target,
+    preprocess_dataset,
+    print_data_quality_report,
+    print_high_impact_target_report,
+)
+from training_comparison import print_model_comparison, train_and_compare_models
 
 
 PROJECT_TARGET_COLUMN = "High Financial Impact"
@@ -71,7 +85,7 @@ def main():
         df_impact,
         target_column=PROJECT_TARGET_COLUMN,
         drop_columns=[LOSS_COLUMN],
-        test_size=0.2,
+        test_size=0.3,
         random_state=42,
         cv_splits=5,
         n_jobs=1,
