@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/5f95faa0272b44419ab418d5cf8e33de/artifacts
+end_time: 1777498596173
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: 5f95faa0272b44419ab418d5cf8e33de
+run_name: decision_tree
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777498593829
+status: 3
+tags: []
+user_id: stevekingsley
