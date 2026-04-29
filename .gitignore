@@ -12,3 +12,6 @@ code/*.png
 resultat_shell.txt
 
 rapport.*
+
+# Virtual environment (for Ubuntu...)
+code/.venv
