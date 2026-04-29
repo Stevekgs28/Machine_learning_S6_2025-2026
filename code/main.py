@@ -103,7 +103,7 @@ def main():
         test_size=0.3,
         random_state=42,
         cv_splits=5,
-        n_jobs=1,
+        n_jobs=8,
         output_dir=".",
         use_feature_engineering=True,
         include_loss_based_features=False,

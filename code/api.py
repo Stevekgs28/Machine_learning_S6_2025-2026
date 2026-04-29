@@ -22,6 +22,8 @@ ou via Docker :
 from pathlib import Path
 from typing import Optional
 
+from fastapi.middleware.cors import CORSMiddleware
+
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
@@ -41,6 +43,13 @@ app = FastAPI(
         "l'API existe pour valider la chaine de deploiement."
     ),
     version="1.0.0",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 _state = {"model": None, "model_name": None}
