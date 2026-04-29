@@ -22,6 +22,52 @@ from sklearn.preprocessing import label_binarize
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.utils.multiclass import type_of_target
 
+try:
+    import mlflow
+    import mlflow.sklearn
+    _MLFLOW_AVAILABLE = True
+except ImportError:
+    _MLFLOW_AVAILABLE = False
+
+
+def _log_run_to_mlflow(run_name, model, payload):
+    """Log a single model run (params, metrics, artifacts, model) to MLflow."""
+    with mlflow.start_run(run_name=run_name):
+        mlflow.set_tag("model_name", run_name)
+        for k, v in (payload.get("best_params") or {}).items():
+            try:
+                mlflow.log_param(str(k), str(v))
+            except Exception:
+                pass
+        mlflow.log_metric("train_f1_macro", float(payload["train_f1_macro"]))
+        mlflow.log_metric("test_f1_macro",  float(payload["test_f1_macro"]))
+        mlflow.log_metric("test_accuracy",  float(payload["test_accuracy"]))
+        cv_f1 = payload.get("best_cv_f1_macro")
+        if cv_f1 is not None:
+            mlflow.log_metric("best_cv_f1_macro", float(cv_f1))
+        for mk, mv in (payload.get("evaluation_metrics") or {}).items():
+            if mv is not None:
+                try:
+                    mlflow.log_metric(mk, float(mv))
+                except (TypeError, ValueError):
+                    pass
+        fit_q = payload.get("fit_quality") or {}
+        if "train_minus_test_f1" in fit_q:
+            mlflow.log_metric("train_minus_test_f1", float(fit_q["train_minus_test_f1"]))
+        if "risk_flag" in fit_q:
+            mlflow.set_tag("risk_flag", fit_q["risk_flag"])
+        for path in (payload.get("plot_paths") or []):
+            if os.path.isfile(path):
+                try:
+                    mlflow.log_artifact(path, artifact_path="plots")
+                except Exception:
+                    pass
+        if model is not None:
+            try:
+                mlflow.sklearn.log_model(model, name="model")
+            except Exception:
+                pass
+
 
 def _summarize_fit_quality(train_f1, test_f1, cv_f1=None):
     """Heuristic summary to flag underfitting/overfitting risk."""
@@ -186,6 +232,9 @@ def train_and_compare_models(
     include_baseline=True,
     include_ensembles=False,
     scoring="f1_macro",
+    mlflow_experiment=None,
+    mlflow_tracking_uri=None,
+    return_estimators=False,
 ):
     """
     Train and compare candidate classifiers with cross-validation tuning.
@@ -274,12 +323,19 @@ def train_and_compare_models(
     if save_plots:
         os.makedirs(output_dir, exist_ok=True)
 
+    mlflow_active = bool(mlflow_experiment) and _MLFLOW_AVAILABLE
+    if mlflow_active:
+        if mlflow_tracking_uri:
+            mlflow.set_tracking_uri(mlflow_tracking_uri)
+        mlflow.set_experiment(mlflow_experiment)
+
     results = {}
     tuned_estimators = {}
 
     if include_baseline:
         baseline = DummyClassifier(strategy="most_frequent")
         baseline.fit(X_train, y_train)
+        tuned_estimators["baseline_most_frequent"] = baseline
         y_train_pred_b = baseline.predict(X_train)
         y_test_pred_b = baseline.predict(X_test)
         baseline_train_f1 = f1_score(y_train, y_train_pred_b, average="macro")
@@ -390,6 +446,7 @@ def train_and_compare_models(
             n_jobs=n_jobs,
         )
         voting.fit(X_train, y_train)
+        tuned_estimators["voting_soft"] = voting
         y_train_pred_v = voting.predict(X_train)
         y_test_pred_v = voting.predict(X_test)
         train_f1_v = f1_score(y_train, y_train_pred_v, average="macro")
@@ -454,6 +511,7 @@ def train_and_compare_models(
             n_jobs=n_jobs,
         )
         stacking.fit(X_train, y_train)
+        tuned_estimators["stacking"] = stacking
         y_train_pred_s = stacking.predict(X_train)
         y_test_pred_s = stacking.predict(X_test)
         train_f1_s = f1_score(y_train, y_train_pred_s, average="macro")
@@ -509,6 +567,14 @@ def train_and_compare_models(
         _plot_model_metrics_barplot(results, comparison_path)
         results["_comparison_plot"] = comparison_path
 
+    if mlflow_active:
+        for name, payload in results.items():
+            if name.startswith("_") or not isinstance(payload, dict):
+                continue
+            _log_run_to_mlflow(name, tuned_estimators.get(name), payload)
+
+    if return_estimators:
+        return results, tuned_estimators
     return results
 
 
