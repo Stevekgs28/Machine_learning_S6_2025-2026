@@ -11,7 +11,13 @@ code/*.png
 
 resultat_shell.txt
 
-rapport.[pol][o]*
+# LaTeX
+*.aux
+*.log
+*.out
+*.pdf
+*.toc
+
 
 # Virtual environment (for Ubuntu...)
 code/.venv
