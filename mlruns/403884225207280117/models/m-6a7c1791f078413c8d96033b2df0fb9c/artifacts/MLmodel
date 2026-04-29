@@ -1,0 +1,23 @@
+artifact_path: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/403884225207280117/models/m-6a7c1791f078413c8d96033b2df0fb9c/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.1
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+    skops_trusted_types: null
+mlflow_version: 3.11.1
+model_id: m-6a7c1791f078413c8d96033b2df0fb9c
+model_size_bytes: 71833
+model_uuid: m-6a7c1791f078413c8d96033b2df0fb9c
+prompts: null
+run_id: 6b75112cddfa4ae6a637e8c27002ff5a
+utc_time_created: '2026-04-28 21:31:32.114745'

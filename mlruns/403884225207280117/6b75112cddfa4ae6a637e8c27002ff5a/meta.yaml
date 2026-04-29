@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/403884225207280117/6b75112cddfa4ae6a637e8c27002ff5a/artifacts
+end_time: 1777411894886
+entry_point_name: ''
+experiment_id: '403884225207280117'
+lifecycle_stage: active
+run_id: 6b75112cddfa4ae6a637e8c27002ff5a
+run_name: decision_tree
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777411891821
+status: 3
+tags: []
+user_id: Minos

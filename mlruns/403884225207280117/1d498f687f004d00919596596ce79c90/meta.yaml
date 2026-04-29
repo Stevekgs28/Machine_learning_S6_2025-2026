@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/403884225207280117/1d498f687f004d00919596596ce79c90/artifacts
+end_time: 1777411897937
+entry_point_name: ''
+experiment_id: '403884225207280117'
+lifecycle_stage: active
+run_id: 1d498f687f004d00919596596ce79c90
+run_name: random_forest
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777411894890
+status: 3
+tags: []
+user_id: Minos

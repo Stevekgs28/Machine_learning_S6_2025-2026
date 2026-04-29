@@ -1,0 +1,10 @@
+artifact_location: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/models/m-b9e7d64e794f4974849226c9be292a52/artifacts
+creation_timestamp: 1777411374877
+experiment_id: '480384756810363775'
+last_updated_timestamp: 1777411377782
+model_id: m-b9e7d64e794f4974849226c9be292a52
+model_type: null
+name: model
+source_run_id: b30a1f7cb6604b73a018f2034eefaa08
+status: 2
+status_message: null

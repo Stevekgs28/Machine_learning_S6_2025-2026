@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/403884225207280117/fc8fb03b3f4f4aa19fa5974b9c42dd79/artifacts
+end_time: 1777411891817
+entry_point_name: ''
+experiment_id: '403884225207280117'
+lifecycle_stage: active
+run_id: fc8fb03b3f4f4aa19fa5974b9c42dd79
+run_name: logistic_regression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777411888837
+status: 3
+tags: []
+user_id: Minos

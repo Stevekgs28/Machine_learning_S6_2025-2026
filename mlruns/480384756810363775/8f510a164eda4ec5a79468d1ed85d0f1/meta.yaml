@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/8f510a164eda4ec5a79468d1ed85d0f1/artifacts
+end_time: 1777410985571
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: 8f510a164eda4ec5a79468d1ed85d0f1
+run_name: baseline_most_frequent
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777410968278
+status: 3
+tags: []
+user_id: Minos

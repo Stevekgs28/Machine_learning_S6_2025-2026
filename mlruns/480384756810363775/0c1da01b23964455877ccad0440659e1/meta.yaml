@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/0c1da01b23964455877ccad0440659e1/artifacts
+end_time: 1777411002050
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: 0c1da01b23964455877ccad0440659e1
+run_name: stacking
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777410998703
+status: 3
+tags: []
+user_id: Minos
