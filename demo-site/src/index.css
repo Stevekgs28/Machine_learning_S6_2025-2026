@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-ink-950 text-slate-200 font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(94, 234, 212, 0.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(251, 191, 36, 0.05), transparent 60%),
+      linear-gradient(rgba(94, 234, 212, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(94, 234, 212, 0.035) 1px, transparent 1px);
+    background-size: auto, auto, 48px 48px, 48px 48px;
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: rgba(94, 234, 212, 0.3);
+    color: #f8fafc;
+  }
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #0b1117; }
+  ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2dd4bf; }
+}
+
+@layer components {
+  .font-mono {
+    font-feature-settings: "calt" 1, "ss01" 1;
+  }
+  .terminal-prompt::before {
+    content: "$ ";
+    color: #5eead4;
+    font-weight: 700;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-mint/30 bg-mint/5 px-2.5 py-0.5 text-[11px] font-mono uppercase tracking-wider text-mint;
+  }
+  .pill-amber {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-amber/30 bg-amber/5 px-2.5 py-0.5 text-[11px] font-mono uppercase tracking-wider text-amber;
+  }
+  .pill-crimson {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson/5 px-2.5 py-0.5 text-[11px] font-mono uppercase tracking-wider text-crimson;
+  }
+  .card {
+    @apply rounded-xl border border-ink-600/70 bg-ink-900/60 backdrop-blur-sm;
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:border-mint/40 hover:bg-ink-800/60;
+  }
+  .section-title {
+    @apply font-display text-3xl md:text-4xl font-semibold text-white tracking-tight;
+  }
+  .section-eyebrow {
+    @apply font-mono text-xs uppercase tracking-[0.25em] text-mint;
+  }
+  .stat-num {
+    @apply font-mono text-4xl md:text-5xl font-semibold text-white tabular-nums tracking-tight;
+  }
+  .link-mint {
+    @apply text-mint hover:text-mint-400 underline-offset-4 hover:underline transition-colors;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-lg bg-mint px-4 py-2.5 font-mono text-sm font-semibold text-ink-950 shadow-glow-mint transition-all hover:bg-mint-400 hover:shadow-[0_0_0_1px_rgba(94,234,212,0.5),0_8px_40px_-8px_rgba(94,234,212,0.5)] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-lg border border-ink-600 bg-ink-800/60 px-4 py-2.5 font-mono text-sm font-medium text-slate-200 transition-all hover:border-mint/40 hover:text-mint;
+  }
+  .input-ml {
+    @apply w-full rounded-lg border border-ink-600 bg-ink-900/80 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-muted focus:border-mint/60 focus:outline-none focus:ring-1 focus:ring-mint/40 transition-colors;
+  }
+  .label-ml {
+    @apply block font-mono text-[11px] uppercase tracking-wider text-muted mb-1.5;
+  }
+  /* faint blinking cursor */
+  .blink::after {
+    content: "▍";
+    color: #5eead4;
+    animation: blink 1.1s steps(1) infinite;
+    margin-left: 2px;
+  }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(94, 234, 212, 0); }
+}
+.pulse-dot {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.6s ease-out backwards;
+}
