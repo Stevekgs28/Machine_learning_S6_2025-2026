@@ -1,0 +1,45 @@
+services:
+
+  # ─────────────────────────────────────────────
+  # Service principal : API FastAPI
+  # ─────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: steve-ml-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Recharge le modèle sans rebuild si tu le régénère avec main.py
+      - ./saved_models:/app/saved_models:ro
+      # Les PNG générés par main.py sont accessibles depuis l'hôte
+      - ./graphs:/app/graphs
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Service MLflow UI (optionnel)
+  # Démarre le serveur de tracking MLflow sur
+  # les runs déjà produits par main.py
+  # Accessible sur http://localhost:5000
+  # ─────────────────────────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    container_name: steve-mlflow-ui
+    working_dir: /mlruns
+    volumes:
+      - ./mlruns:/mlruns
+    ports:
+      - "5000:5000"
+    command: >
+      bash -c "pip install --quiet mlflow &&
+               mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns"
+    restart: unless-stopped
