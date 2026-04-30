@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/c1c22674687a47adb486d8b0ebc7d992/artifacts
+end_time: 1777509627426
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: c1c22674687a47adb486d8b0ebc7d992
+run_name: logistic_regression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777509625257
+status: 3
+tags: []
+user_id: stevekingsley

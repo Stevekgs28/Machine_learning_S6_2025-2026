@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/449afbfa858b45bfaa54a361f6d378f2/artifacts
+end_time: 1777510053667
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: 449afbfa858b45bfaa54a361f6d378f2
+run_name: baseline_most_frequent
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777510050990
+status: 3
+tags: []
+user_id: stevekingsley

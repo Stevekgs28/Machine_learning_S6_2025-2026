@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/f8ca3392bb444a7b85b7176b3cadaa80/artifacts
+end_time: 1777509633821
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: f8ca3392bb444a7b85b7176b3cadaa80
+run_name: voting_soft
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777509631735
+status: 3
+tags: []
+user_id: stevekingsley

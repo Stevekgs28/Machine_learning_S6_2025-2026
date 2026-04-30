@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Minos/Downloads/Cowork/Machine-learning/Projet/Machine_learning_S6_2025-2026/mlruns/480384756810363775/788df56f8a2e4afe87646db8dc95fa00/artifacts
+end_time: 1777510065489
+entry_point_name: ''
+experiment_id: '480384756810363775'
+lifecycle_stage: active
+run_id: 788df56f8a2e4afe87646db8dc95fa00
+run_name: stacking
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777510063172
+status: 3
+tags: []
+user_id: stevekingsley
