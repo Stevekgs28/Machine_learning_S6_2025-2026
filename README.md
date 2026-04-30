@@ -123,4 +123,7 @@ This script will:
 
 ---
 
-If you need the README expanded with example `curl` requests or a section for the `demo-site/` frontend, I can add that as well.
+## Access to the website
+It must be done on my computer :
+$ npm run dev
+The link must be : http://localhost:5173
