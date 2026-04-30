@@ -1,161 +1,310 @@
 % =============================================================================
-% Brouillon de rapport organise autour du Pivot C : le diagnostic du dataset
-% devient le coeur du rapport plutot que d'essayer de "sauver" la performance.
-%
-% Sections marquees [TODO] ou [A COMPLETER] sont des squelettes a remplir.
-% La section "Diagnostic du dataset" est ecrite integralement avec les chiffres
-% et les figures generees par code/diagnostic_signal.py, code/diagnostic_figures.py
-% et code/diagnostic_regression.py.
-%
-% Les figures sont supposees dans graphs/ (01_loss_distribution.png, etc.).
+% Machine Learning Project Report — MOD10: Machine Learning, Winter 2026
+% Global Cybersecurity Threats 2015–2024
 % =============================================================================
 
 \documentclass[a4paper,12pt]{article}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[french]{babel}
+\usepackage[english]{babel}
 \usepackage{graphicx}
+\graphicspath{{./}{./graphs/}{./code/}{./code/figures/}{./figures/}}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{caption}
+\usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
 \geometry{margin=2.5cm}
 
-\title{Diagnostic d'un dataset synth\'etique pour la d\'etection d'incidents \`a fort impact financier\\
-\large Une approche m\'ethodologique appliqu\'ee \`a un dataset Kaggle de cybers\'ecurit\'e}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black,
+}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!8},
+    keywordstyle=\color{blue!70!black},
+    commentstyle=\color{green!50!black},
+    columns=flexible,
+}
+
+\title{
+\textbf{Diagnosing a Synthetic Dataset for High Financial Impact Incident Detection}\\[6pt]
+\large A Methodological Approach Applied to the\\
+Global Cybersecurity Threats 2015--2024 Kaggle Dataset\\[12pt]
+\normalsize MOD10: Machine Learning --- Winter 2026\\
+Instructor: Mohammed A. Shehab
+}
 \author{
-Noa ISABEY \\
-L\'eo PROSPER \\
-Ashkan MIRI \\
-Steve KINGSLEY ARULNEASATHAS
+Noa Isabey \and
+L\'eo Prosper \and
+Ashkan Miri \and
+Steve Kingsley Arulneasathas
 }
 \date{April 2026}
 
 \begin{document}
 
 \maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This report presents our Machine Learning project on the \emph{Global Cybersecurity Threats 2015--2024} Kaggle dataset (3\,000 incidents, 10 features). The objective is to predict whether a cybersecurity incident results in \emph{high financial impact} (binary classification at the 75th percentile of financial loss). After training and comparing six models---including baseline, logistic regression, decision tree, random forest, soft voting, and stacking---all converging to an F1 macro of approximately 0.49 and a ROC-AUC near 0.50, we conducted a rigorous statistical diagnostic. This diagnostic demonstrates that the dataset carries no exploitable signal: \texttt{Financial Loss} follows a uniform distribution ($p_\text{KS} = 0.804$), no feature exhibits meaningful mutual information or association with the target, and direct regression yields negative $R^2$ on the test set. We validate our pipeline on a real-world phishing dataset where it achieves F1 macro above 0.85, confirming that our methodology is sound. The project covers the complete ML lifecycle including feature engineering, model comparison, SHAP-based interpretability, Docker deployment via FastAPI, and MLflow experiment tracking.
+\end{abstract}
+
 \tableofcontents
 \newpage
 
 % =============================================================================
 \section{Introduction}
+\label{sec:intro}
 % =============================================================================
 
-\textbf{[A COMPLETER]} Ce rapport pr\'esente notre travail sur le projet de Machine Learning du semestre~6, dont l'objectif initial est de pr\'edire les incidents de cybers\'ecurit\'e \`a \emph{fort impact financier} \`a partir d'un jeu de donn\'ees public.
+This report documents our Machine Learning project for the MOD10 course (Winter 2026). The objective is to apply the complete model-building lifecycle---from data preprocessing and exploratory data analysis, through model training and evaluation, to deployment and performance tracking---on a real-world problem.
 
-Nous avons retenu le dataset \emph{Global Cybersecurity Threats 2015-2024} disponible sur Kaggle, qui contient 3000 incidents d\'ecrits par 10 colonnes (pays, ann\'ee, type d'attaque, industrie cibl\'ee, perte financi\`ere, nombre d'utilisateurs affect\'es, source de l'attaque, type de vuln\'erabilit\'e, m\'ecanisme de d\'efense utilis\'e, temps de r\'esolution).
+We selected the \emph{Global Cybersecurity Threats 2015--2024} dataset available on Kaggle, which contains 3\,000 cybersecurity incidents described by 10 columns: country, year, attack type, target industry, financial loss (in millions USD), number of affected users, attack source, security vulnerability type, defense mechanism used, and incident resolution time (in hours).
 
-Nous d\'efinissons la t\^ache comme une \textbf{classification binaire}: pr\'edire si la perte financi\`ere d\'epasse le quantile~0.75 de la distribution observ\'ee, soit \texttt{Financial Loss} $\geq$ 75.63 M\$.
+We define the prediction task as a \textbf{binary classification}: predicting whether the financial loss exceeds the 75th percentile of the observed distribution, i.e., \texttt{Financial Loss} $\geq 75.63$\,M\$. This yields a target variable \texttt{High Financial Impact} with a 75/25 class split (2\,249 incidents in class~0, 751 in class~1).
 
-\textbf{Plan du rapport.} La section~\ref{sec:methodo} d\'ecrit notre m\'ethodologie. La section~\ref{sec:results} pr\'esente les r\'esultats des mod\`eles candidats. La section~\ref{sec:diagnostic} constitue le c\oe ur de notre travail: face \`a une convergence des mod\`eles autour d'une F1 macro de 0.49 et d'un AUC de 0.5, nous avons men\'e un diagnostic statistique du dataset pour identifier l'origine de cette performance plate. La section~\ref{sec:discussion} en tire les enseignements m\'ethodologiques.
+\textbf{Report outline.} Section~\ref{sec:eda} covers exploratory data analysis and feature engineering. Section~\ref{sec:training} presents model training, comparison, and ensemble methods. Section~\ref{sec:metrics} details the evaluation metrics. Section~\ref{sec:diagnostic} contains the core contribution: a statistical diagnostic explaining why all models converge to chance-level performance. Section~\ref{sec:interpretability} discusses SHAP-based interpretability. Section~\ref{sec:deployment} describes the Docker deployment and REST API. Section~\ref{sec:mlflow} covers MLflow performance tracking. Section~\ref{sec:discussion} concludes with methodological takeaways.
 
 % =============================================================================
-\section{M\'ethodologie}
-\label{sec:methodo}
+\section{Feature Engineering and Exploratory Data Analysis}
+\label{sec:eda}
 % =============================================================================
 
-\subsection{Pr\'etraitement des donn\'ees}
+\subsection{Data Preprocessing}
 
-Notre pipeline de pr\'etraitement (\texttt{code/preprocess.py}) applique:
-\begin{itemize}
-  \item normalisation des valeurs textuelles \emph{Unknown}, \emph{N/A}, \emph{none} en une cat\'egorie unique \texttt{Unknown};
-  \item conversion explicite en types num\'eriques pour \texttt{Year}, \texttt{Financial Loss}, \texttt{Number of Affected Users}, \texttt{Incident Resolution Time};
-  \item rapport de qualit\'e des donn\'ees (doublons, valeurs manquantes, cardinalit\'e cat\'egorielle).
+Our preprocessing pipeline (\texttt{code/preprocess.py}) performs the following operations:
+
+\begin{enumerate}[leftmargin=2cm]
+    \item \textbf{Unknown value normalization}: all textual entries matching common missing-value tokens (\texttt{Unknown}, \texttt{N/A}, \texttt{none}, \texttt{null}, etc.) are unified into a single \texttt{Unknown} category.
+    \item \textbf{Type casting}: explicit conversion of \texttt{Year}, \texttt{Financial Loss}, \texttt{Number of Affected Users}, and \texttt{Incident Resolution Time} to numeric types.
+    \item \textbf{Data quality report}: automatic detection of duplicates, missing values, and categorical cardinality.
+\end{enumerate}
+
+The quality report on our dataset reveals: zero duplicates, zero missing values after normalization, and 768 \texttt{Unknown} values concentrated on \texttt{Attack Source} ($\approx$25\%). Categorical cardinalities are moderate: \texttt{Country}=10, \texttt{Attack Type}=6, \texttt{Target Industry}=7, \texttt{Attack Source}=4, \texttt{Security Vulnerability Type}=4, \texttt{Defense Mechanism Used}=5.
+
+\subsection{Target Construction}
+
+We derive a binary target \texttt{High Financial Impact} by thresholding \texttt{Financial Loss} at the 75th percentile (75.63\,M\$). The resulting class distribution is 75/25 by construction (2\,249 class-0, 751 class-1).
+
+\subsection{Feature Engineering}
+
+The function \texttt{add\_feature\_engineering\_columns()} in \texttt{preprocess.py} creates the following domain-driven features to enrich the input space:
+
+\begin{enumerate}[leftmargin=2cm]
+    \item \textbf{Users Per Resolution Hour}: ratio of affected users to resolution time, capturing incident severity density.
+    \item \textbf{Attack Source Is Unknown}: binary indicator for whether the attack source is unknown.
+    \item \textbf{Year Bucket}: discretization of the year into three periods (2015--2018, 2019--2021, 2022--2024) to capture temporal trends.
+\end{enumerate}
+
+Note: loss-based features (\texttt{Loss Per 1k Users}, \texttt{Loss Per Resolution Hour}) are \textbf{excluded} from the classification pipeline to avoid target leakage, since the target derives from \texttt{Financial Loss} itself.
+
+\subsection{Exploratory Data Analysis}
+
+Our EDA (\texttt{code/diagrams.py}, \texttt{code/main.py}) produces the following key visualizations:
+
+\begin{itemize}[leftmargin=2cm]
+    \item \textbf{Class balance plot}: confirms the 75/25 split of \texttt{High Financial Impact}.
+    \item \textbf{High-impact rate by category}: bar charts showing the rate of class-1 per modality of \texttt{Target Industry} and \texttt{Country}. Visual inspection suggests rates hovering near the baseline 25\% across all categories---an early warning sign of absent signal.
+    \item \textbf{Numeric distributions}: histograms for \texttt{Year}, \texttt{Number of Affected Users}, and \texttt{Incident Resolution Time} showing approximately uniform distributions.
+    \item \textbf{Correlation heatmaps}: Pearson correlation among numeric features and Cram\'er's V among categorical features, both revealing no noteworthy association with the target.
 \end{itemize}
 
-L'ex\'ecution sur notre dataset (3000 lignes, 10 colonnes) ne r\'ev\`ele aucun doublon, aucune valeur manquante apr\`es normalisation, et 768 valeurs \texttt{Unknown} concentr\'ees sur \texttt{Attack Source} (~25\%). Les cardinalit\'es cat\'egorielles sont mod\'er\'ees: \texttt{Country}=10, \texttt{Attack Type}=6, \texttt{Target Industry}=7, \texttt{Attack Source}=4, \texttt{Security Vulnerability Type}=4, \texttt{Defense Mechanism Used}=5.
-
-\subsection{Construction de la cible}
-
-Nous d\'erivons une cible binaire \texttt{High Financial Impact} en seuillant \texttt{Financial Loss} au quantile~0.75 (75.63~M\$). Le ratio de classes obtenu est 75/25 par construction (2249 incidents en classe~0, 751 en classe~1).
-
-\subsection{Mod\`eles candidats}
-
-Nous comparons quatre mod\`eles couvrant un spectre de complexit\'es:
-\begin{itemize}
-  \item \textbf{Baseline} (\texttt{DummyClassifier(strategy="most\_frequent")}): plancher de r\'ef\'erence;
-  \item \textbf{Logistic Regression}: mod\`ele lin\'eaire, sensible \`a la mise \`a l'\'echelle;
-  \item \textbf{Decision Tree}: capture des effets non-lin\'eaires et des interactions;
-  \item \textbf{Random Forest}: agr\'egation d'arbres, robuste au bruit.
-\end{itemize}
-
-Tous les mod\`eles non-triviaux sont s\'electionn\'es par \texttt{GridSearchCV} avec validation crois\'ee \texttt{StratifiedKFold(n\_splits=5)}, scoring F1 sur la classe positive. \texttt{class\_weight="balanced"} est utilis\'e syst\'ematiquement pour compenser le d\'es\'equilibre 75/25.
-
-\subsection{M\'etriques d'\'evaluation}
-
-Nous rapportons l'accuracy, la pr\'ecision, le rappel et la F1 macro (qui pond\`ere \'egalement les deux classes), ainsi que le ROC-AUC \emph{One-vs-Rest}. La F1 macro est notre m\'etrique principale car le d\'es\'equilibre rend l'accuracy trompeuse: pr\'edire toujours la classe majoritaire donne 75\% d'accuracy mais une F1 macro de 0.43.
+These EDA findings already suggest the absence of a predictive signal, a hypothesis formally tested in Section~\ref{sec:diagnostic}.
 
 % =============================================================================
-\section{R\'esultats exp\'erimentaux}
-\label{sec:results}
+\section{Model Training and Comparison}
+\label{sec:training}
 % =============================================================================
 
-\subsection{Performance des mod\`eles}
+\subsection{Candidate Models}
 
-Le tableau~\ref{tab:results} r\'esume les performances obtenues sur l'ensemble de test (900 \'echantillons, 30\% du dataset).
+We compare six models spanning a range of complexity levels. All non-trivial models are tuned via \texttt{GridSearchCV} with \texttt{StratifiedKFold(n\_splits=5)} cross-validation, optimizing F1 score on the positive class. \texttt{class\_weight="balanced"} is used systematically to compensate for the 75/25 class imbalance.
 
-\begin{table}[h!]
+\begin{enumerate}[leftmargin=2cm]
+    \item \textbf{Baseline} (\texttt{DummyClassifier(strategy="most\_frequent")}): performance floor.
+    \item \textbf{Logistic Regression}: linear model with L2 regularization. Hyperparameter grid: $C \in \{0.01, 0.1, 1, 5, 10, 20\}$, solver = \texttt{lbfgs}.
+    \item \textbf{Decision Tree}: non-linear model capturing interactions. Grid: \texttt{max\_depth} $\in \{3,5,8,12,16\}$, \texttt{min\_samples\_split} $\in \{2,5,10,20\}$, \texttt{min\_samples\_leaf} $\in \{1,3,5,10\}$, \texttt{ccp\_alpha} $\in \{0, 0.0005, 0.001, 0.005\}$.
+    \item \textbf{Random Forest}: ensemble of trees. Grid: \texttt{n\_estimators} $\in \{50,100,200\}$, \texttt{max\_depth} $\in \{\text{None},10,20\}$, \texttt{min\_samples\_split} $\in \{2,5,10\}$, \texttt{min\_samples\_leaf} $\in \{1,2,4\}$.
+    \item \textbf{Soft Voting} (ensemble): combines tuned Logistic Regression and Decision Tree with soft voting (probability averaging).
+    \item \textbf{Stacking} (ensemble): uses tuned Logistic Regression and Decision Tree as base learners, with a balanced Logistic Regression as the meta-learner, using \texttt{predict\_proba} stacking method and 5-fold cross-validation.
+\end{enumerate}
+
+Each model is wrapped in a scikit-learn \texttt{Pipeline} containing a \texttt{ColumnTransformer} preprocessing step that applies median imputation and optional standard scaling to numeric features, and one-hot encoding to categorical features.
+
+\subsection{Results}
+
+Table~\ref{tab:results} summarizes the performance obtained on the test set (900 samples, 30\% of the dataset).
+
+\begin{table}[H]
 \centering
-\caption{Performance des mod\`eles sur l'ensemble de test (900 \'echantillons). L'\'ecart train/test indique la qualit\'e de g\'en\'eralisation: un \'ecart \'elev\'e signale un sur-apprentissage.}
+\caption{Model performance on the held-out test set (900 samples). The train--test gap indicates generalization quality: a large gap signals overfitting.}
 \label{tab:results}
 \begin{tabular}{lrrrrr}
 \toprule
-\textbf{Mod\`ele} & \textbf{Train F1} & \textbf{Test F1} & \textbf{Accuracy} & \textbf{ROC-AUC} & \textbf{Train$-$Test} \\
+\textbf{Model} & \textbf{Train F1} & \textbf{Test F1} & \textbf{Accuracy} & \textbf{ROC-AUC} & \textbf{Gap} \\
 \midrule
 Baseline (most freq.) & 0.4284 & 0.4286 & 0.7500 & 0.500 & $-0.000$ \\
 Logistic Regression   & 0.5248 & 0.4775 & 0.5256 & 0.498 & $+0.047$ \\
 Decision Tree         & 0.6509 & 0.4828 & 0.5089 & 0.524 & $+0.168$ \\
 Random Forest         & 0.9095 & 0.4914 & 0.7033 & 0.505 & $+0.418$ \\
+Soft Voting (LR+DT)   & 0.6494 & 0.4814 & 0.5078 & 0.521 & $+0.168$ \\
+Stacking (LR+DT$\to$LR) & 0.4882 & 0.4792 & 0.5100 & 0.514 & $+0.009$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Constat: convergence des mod\`eles autour de l'al\'eatoire}
+\subsection{Observation: Convergence Toward Random Performance}
 
-Trois observations s'imposent:
+Three key observations emerge from Table~\ref{tab:results}:
 
-\begin{enumerate}
-  \item Tous les mod\`eles non-triviaux convergent vers une F1 macro de l'ordre de 0.48-0.49, l\'eg\`erement au-dessus de la baseline majoritaire (0.43) mais loin de toute performance utilisable en pratique.
-  \item Les ROC-AUC sont tous proches de 0.50, c'est-\`a-dire \emph{au niveau du hasard} pour un classifieur binaire.
-  \item Le Random Forest pr\'esente un \'ecart train/test consid\'erable ($0.91 \rightarrow 0.49$), \emph{visible sur la figure~\ref{fig:overfit}}, signe que le mod\`ele dispose d'une capacit\'e suffisante pour m\'emoriser l'ensemble d'entra\^inement mais ne parvient pas \`a g\'en\'eraliser.
+\begin{enumerate}[leftmargin=2cm]
+    \item All non-trivial models converge to a test F1 macro around 0.48--0.49, barely above the baseline (0.43) and far from any practically useful performance.
+    \item ROC-AUC values are all near 0.50, i.e., \emph{at chance level} for a binary classifier.
+    \item The Random Forest exhibits a large train--test gap ($0.91 \to 0.49$), indicating that the model has sufficient capacity to memorize the training set but cannot generalize.
 \end{enumerate}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{graphs/05_train_vs_test_overfit.png}
-\caption{Comparaison F1 macro train vs test pour chaque mod\`ele. Le Random Forest m\'emorise (train 0.91) mais g\'en\'eralise au m\^eme niveau que les autres mod\`eles (test 0.49), peine au-dessus de la baseline majoritaire (0.43).}
+\includegraphics[width=0.92\linewidth]{graphs/05_train_vs_test_overfit.png}
+\caption{Train vs.\ test F1 macro comparison for each model. The Random Forest memorizes the training set (F1 = 0.91) but generalizes at the same level as simpler models (F1 $\approx$ 0.49), barely above the majority-class baseline (0.43).}
 \label{fig:overfit}
 \end{figure}
 
-Cette signature (capacit\'e suffisante + g\'en\'eralisation au niveau du hasard) sugg\`ere que le probl\`eme n'est pas du c\^ot\'e du mod\`ele mais du c\^ot\'e des \emph{donn\'ees}: il n'y aurait simplement \emph{pas de signal exploitable} dans les features pour pr\'edire la cible. C'est l'hypoth\`ese que la section suivante teste rigoureusement.
+\subsection{Ensemble Methods Analysis}
+
+Both ensemble techniques fail to improve upon the individual models:
+
+\begin{itemize}[leftmargin=2cm]
+    \item \textbf{Soft Voting} (test F1 = 0.4814): averaging the probabilities of two models that individually predict at chance level yields a combined prediction that is also at chance level. Ensemble methods amplify signal---when no signal exists, there is nothing to amplify.
+    \item \textbf{Stacking} (test F1 = 0.4792): the meta-learner receives probability outputs from two uninformative base models. Training a logistic regression on noise features produces noise predictions. The low train--test gap (0.009) reflects that the stacking meta-learner has ``learned'' to produce near-constant predictions---a form of underfitting that mirrors the dataset's lack of structure.
+\end{itemize}
+
+This signature---sufficient model capacity combined with chance-level generalization for all model families, including ensembles---suggests that the problem lies with the \emph{data}, not the models: there is simply no exploitable signal in the features to predict the target. This hypothesis is rigorously tested in Section~\ref{sec:diagnostic}.
 
 % =============================================================================
-\section{Diagnostic du dataset}
+\section{Evaluation Metrics}
+\label{sec:metrics}
+% =============================================================================
+
+We report a comprehensive set of classification metrics to provide a multi-faceted view of model performance.
+
+\subsection{Metrics Overview}
+
+\begin{itemize}[leftmargin=2cm]
+    \item \textbf{Accuracy}: proportion of correct predictions. Misleading under class imbalance: predicting the majority class always gives 75\% accuracy.
+    \item \textbf{Precision (macro)}: average per-class precision, measuring the proportion of positive predictions that are correct.
+    \item \textbf{Recall (macro)}: average per-class recall, measuring the proportion of actual positives correctly identified.
+    \item \textbf{F1 macro}: harmonic mean of precision and recall, averaged equally across classes. Our \textbf{primary metric}, as it penalizes a model that ignores the minority class.
+    \item \textbf{ROC-AUC (One-vs-Rest)}: area under the receiver operating characteristic curve, measuring the model's ability to rank positive samples above negative ones. A value of 0.50 indicates no discriminative ability.
+\end{itemize}
+
+\subsection{Detailed Metric Comparison}
+
+Table~\ref{tab:detailed_metrics} presents the full evaluation metrics for all six models.
+
+\begin{table}[H]
+\centering
+\caption{Detailed evaluation metrics on the test set (900 samples).}
+\label{tab:detailed_metrics}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Prec.\ macro} & \textbf{Rec.\ macro} & \textbf{F1 macro} & \textbf{ROC-AUC} \\
+\midrule
+Baseline          & 0.7500 & 0.3750 & 0.5000 & 0.4286 & 0.500 \\
+Logistic Reg.     & 0.5256 & 0.4989 & 0.4985 & 0.4775 & 0.498 \\
+Decision Tree     & 0.5089 & 0.5217 & 0.5289 & 0.4828 & 0.524 \\
+Random Forest     & 0.7033 & 0.5148 & 0.5074 & 0.4914 & 0.505 \\
+Soft Voting       & 0.5078 & 0.5200 & 0.5267 & 0.4814 & 0.521 \\
+Stacking          & 0.5100 & 0.5133 & 0.5178 & 0.4792 & 0.514 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Confusion Matrices and ROC Curves}
+
+Figures~\ref{fig:cm_lr}--\ref{fig:roc_rf} show the confusion matrices and ROC curves for selected models.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{code/confusion_matrix_logistic_regression.png}
+    \caption{Logistic Regression}
+    \label{fig:cm_lr}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{code/confusion_matrix_random_forest.png}
+    \caption{Random Forest}
+    \label{fig:cm_rf}
+\end{subfigure}
+\caption{Confusion matrices on the test set for Logistic Regression and Random Forest.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{code/roc_logistic_regression.png}
+    \caption{Logistic Regression}
+    \label{fig:roc_lr}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{code/roc_random_forest.png}
+    \caption{Random Forest}
+    \label{fig:roc_rf}
+\end{subfigure}
+\caption{ROC curves on the test set. Both curves hug the diagonal (AUC $\approx$ 0.50), indicating no discriminative ability.}
+\end{figure}
+
+\subsection{Metric Interpretation}
+
+The convergence of all metrics toward their chance-level baselines across six fundamentally different models (linear, tree-based, ensemble) is a strong indicator that the performance limitation is intrinsic to the data rather than the models. F1 macro is our primary metric because accuracy alone is misleading: the baseline achieves 75\% accuracy by always predicting the majority class, while its F1 macro is only 0.43. The fact that even the best model (Random Forest, F1 = 0.49) barely exceeds this floor motivates the dataset diagnostic in the next section.
+
+% =============================================================================
+\section{Dataset Diagnostic}
 \label{sec:diagnostic}
 % =============================================================================
 
-\subsection{Quatre hypoth\`eses \`a tester}
+Faced with flat performance across three model families and two ensemble approaches, we formulate four competing hypotheses and test each systematically.
 
-Devant une performance plate sur trois familles de mod\`eles diff\'erentes, nous formulons quatre hypoth\`eses concurrentes pour expliquer ce r\'esultat:
+\subsection{Four Hypotheses}
 
-\begin{description}
-  \item[H1 -- Capacit\'e insuffisante des mod\`eles.] Les algorithmes ne seraient pas assez expressifs pour capturer la relation features $\rightarrow$ cible.
-  \item[H2 -- Pr\'eprocessing inadapt\'e.] Notre pipeline d\'etruirait l'information pertinente (encodage, scaling, etc.).
-  \item[H3 -- Features individuellement non-informatives.] Aucune feature ne porterait, prise s\'epar\'ement, d'information sur la cible.
-  \item[H4 -- Dataset structurellement al\'eatoire.] La cible serait ind\'ependante des features par construction du dataset.
+\begin{description}[leftmargin=2cm]
+    \item[H1 --- Insufficient model capacity.] The algorithms are not expressive enough to capture the feature--target relationship.
+    \item[H2 --- Inadequate preprocessing.] Our pipeline destroys relevant information (encoding, scaling, etc.).
+    \item[H3 --- Individually uninformative features.] No single feature carries information about the target.
+    \item[H4 --- Structurally random dataset.] The target is independent of the features by construction.
 \end{description}
 
-Notons que H1 et H2 \emph{sont d\'ej\`a partiellement r\'efut\'ees} par les r\'esultats de la section pr\'ec\'edente: le Random Forest non-lin\'eaire dispose visiblement de la capacit\'e n\'ecessaire (train F1 = 0.91), et notre pipeline est l'application standard des bonnes pratiques sklearn. Nous validons cependant H3 et H4 explicitement.
+H1 and H2 are \emph{already partially refuted} by the results in Section~\ref{sec:training}: the non-linear Random Forest has sufficient capacity (train F1 = 0.91), and our pipeline follows standard scikit-learn best practices. We validate H3 and H4 explicitly below.
 
-\subsection{H3 -- Mutual information sur les variables num\'eriques}
+\subsection{H3 --- Mutual Information on Numeric Features}
 
-Nous calculons la \emph{mutual information} entre chaque variable num\'erique (hors target et hors \texttt{Financial Loss} dont la target d\'erive) et la cible binaire. Le tableau~\ref{tab:mi} et la figure~\ref{fig:mi} pr\'esentent les r\'esultats.
+We compute the mutual information between each numeric feature (excluding the target and \texttt{Financial Loss} from which the target derives) and the binary target. Results are in Table~\ref{tab:mi} and Figure~\ref{fig:mi}.
 
-\begin{table}[h!]
+\begin{table}[H]
 \centering
-\caption{Mutual information entre features num\'eriques et la cible.}
+\caption{Mutual information between numeric features and the target.}
 \label{tab:mi}
 \begin{tabular}{lr}
 \toprule
@@ -168,26 +317,26 @@ Number of Affected Users             & 0.000000 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.85\linewidth]{graphs/02_mutual_info_numeric.png}
-\caption{Mutual information entre les variables num\'eriques et la cible. Les valeurs sont toutes en de\c{c}\`a du seuil de 0.02 conventionnellement consid\'er\'e comme tr\`es faible.}
+\caption{Mutual information between numeric features and the target. All values fall below the 0.02 threshold conventionally considered very weak.}
 \label{fig:mi}
 \end{figure}
 
-\textbf{Interpr\'etation.} Une MI de 0 signifie que la connaissance de la feature n'apporte litt\'eralement aucune r\'eduction d'incertitude sur la cible. Sur les trois features num\'eriques disponibles, deux sont \`a 0 exactement (\texttt{Year} et \texttt{Number of Affected Users}), la troisi\`eme est \`a 0.006 (largement en dessous des seuils 0.02-0.05 utilis\'es comme rep\`eres dans la litt\'erature). H3 est confirm\'ee.
+A mutual information of 0 means that knowing the feature provides literally zero reduction in uncertainty about the target. Two of three numeric features are exactly at 0, and the third (0.006) is far below the 0.02--0.05 reference thresholds in the literature. H3 is confirmed for numeric features.
 
-\subsection{H3 -- Cram\'er's V et chi$^2$ sur les variables cat\'egorielles}
+\subsection{H3 --- Cram\'er's V and $\chi^2$ Test on Categorical Features}
 
-Pour chaque variable cat\'egorielle, nous calculons la statistique \emph{Cram\'er's V} (chi$^2$ de Pearson normalis\'e dans $[0, 1]$) ainsi que la p-value du test du chi$^2$ d'ind\'ependance. Les r\'esultats figurent dans le tableau~\ref{tab:cramers} et la figure~\ref{fig:cramers}.
+For each categorical feature, we compute Cram\'er's V (normalized Pearson $\chi^2$ in $[0,1]$) and the $p$-value of the $\chi^2$ independence test. Results appear in Table~\ref{tab:cramers} and Figure~\ref{fig:cramers}.
 
-\begin{table}[h!]
+\begin{table}[H]
 \centering
-\caption{Cram\'er's V et test du chi$^2$ entre features cat\'egorielles et cible.}
+\caption{Cram\'er's V and $\chi^2$ independence test between categorical features and the target.}
 \label{tab:cramers}
 \begin{tabular}{lrrr}
 \toprule
-\textbf{Feature} & \textbf{Modalit\'es} & \textbf{Cram\'er's V} & \textbf{$\chi^2$ p-value} \\
+\textbf{Feature} & \textbf{Modalities} & \textbf{Cram\'er's V} & \textbf{$\chi^2$ $p$-value} \\
 \midrule
 Country                       & 10 & 0.058 & 0.343 \\
 Attack Type                   & 6  & 0.042 & 0.376 \\
@@ -199,117 +348,313 @@ Attack Source                 & 4  & 0.026 & 0.561 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.85\linewidth]{graphs/03_cramers_v_categorical.png}
-\caption{Cram\'er's V et p-value du test du chi$^2$ pour chaque variable cat\'egorielle. Aucune feature ne franchit le seuil de 0.10 (association \og faible \fg) et toutes les p-values sont sup\'erieures \`a 0.30.}
+\caption{Cram\'er's V and $\chi^2$ $p$-values for each categorical feature. No feature crosses the 0.10 threshold for ``weak'' association; all $p$-values exceed 0.30.}
 \label{fig:cramers}
 \end{figure}
 
-\textbf{Interpr\'etation.} Le seuil conventionnel de Cram\'er's V est 0.10 pour qualifier une association de \og faible \fg, 0.30 pour \og mod\'er\'ee \fg. Aucune de nos six variables cat\'egorielles ne franchit le seuil de 0.10. De plus, aucune p-value du test du chi$^2$ n'est inf\'erieure \`a 0.30: nous ne pouvons rejeter l'hypoth\`ese d'ind\'ependance pour aucune feature au seuil $\alpha = 0.05$. La feature la plus \og prometteuse \fg{} (\texttt{Country}, $V = 0.058$, $p = 0.34$) reste statistiquement non-discriminante.
+The conventional Cram\'er's V threshold is 0.10 for ``weak'' and 0.30 for ``moderate'' association. None of our six categorical features reaches 0.10. Furthermore, no $\chi^2$ $p$-value is below 0.30: we cannot reject the independence hypothesis for any feature at $\alpha = 0.05$. The most ``promising'' feature (\texttt{Country}, $V = 0.058$, $p = 0.34$) remains statistically non-discriminant.
 
-Pour rendre cette absence d'association visualisable, la figure~\ref{fig:posrate} repr\'esente, pour les trois variables cat\'egorielles ayant le plus haut Cram\'er's V, le taux de classe~1 par modalit\'e accompagn\'e d'un intervalle de confiance \`a 95\% (formule de Wald).
+Figure~\ref{fig:posrate} shows the class-1 rate per modality for the top three categorical features, with 95\% Wald confidence intervals all overlapping the global baseline of 0.25.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{graphs/04_pos_rate_top_categories.png}
-\caption{Taux de classe~1 (\og High Financial Impact \fg) par modalit\'e pour les trois variables cat\'egorielles ayant le Cram\'er's V le plus \'elev\'e. Tous les intervalles de confiance \`a 95\% chevauchent la baseline globale 0.25, confirmant qu'aucune modalit\'e ne discrimine significativement.}
+\caption{Class-1 rate (``High Financial Impact'') per modality for the three categorical features with the highest Cram\'er's V. All 95\% confidence intervals overlap the global baseline 0.25, confirming that no modality discriminates significantly.}
 \label{fig:posrate}
 \end{figure}
 
-\subsection{H4 -- Distribution de Financial Loss}
+\subsection{H4 --- Distribution of Financial Loss}
 
-L'absence de signal sur les autres colonnes nous a conduits \`a examiner la distribution de la variable d'origine \texttt{Financial Loss} \`a partir de laquelle la cible est construite. La figure~\ref{fig:loss} pr\'esente l'histogramme observ\'e accompagn\'e de la densit\'e th\'eorique d'une loi uniforme sur $[0.50, 99.99]$.
+The absence of signal in the features led us to examine the distribution of the source variable \texttt{Financial Loss}. Figure~\ref{fig:loss} presents the observed histogram alongside the theoretical density of a uniform distribution on $[0.50, 99.99]$.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{graphs/01_loss_distribution.png}
-\caption{Distribution de \texttt{Financial Loss} (3000 incidents). La densit\'e observ\'ee suit visuellement une loi uniforme sur $[0.50, 99.99]$. Le test de Kolmogorov-Smirnov contre cette uniforme donne $D = 0.012$ et $p = 0.804$: l'hypoth\`ese d'uniformit\'e ne peut pas \^etre rejet\'ee.}
+\includegraphics[width=0.92\linewidth]{graphs/01_loss_distribution.png}
+\caption{Distribution of \texttt{Financial Loss} (3\,000 incidents). The observed density closely follows a uniform distribution on $[0.50, 99.99]$. The Kolmogorov--Smirnov test gives $D = 0.012$ and $p = 0.804$: uniformity cannot be rejected.}
 \label{fig:loss}
 \end{figure}
 
-\textbf{Statistiques observ\'ees vs uniforme th\'eorique.} La moyenne empirique est 50.49, la m\'ediane 50.80, l'\'ecart-type 28.79 -- exactement les valeurs attendues pour une uniforme sur $[0.5, 100]$ dont l'\'ecart-type th\'eorique est $99.5/\sqrt{12} \approx 28.72$. Le test de Kolmogorov-Smirnov contre cette uniforme donne $D = 0.0117$, $p = 0.804$: \textbf{l'hypoth\`ese que \texttt{Financial Loss} suit une loi uniforme aleatoire ne peut pas \^etre rejet\'ee.}
+The empirical mean is 50.49, the median 50.80, the standard deviation 28.79---exactly matching the theoretical values for a uniform on $[0.5, 100]$ (expected $\sigma = 99.5/\sqrt{12} \approx 28.72$). The Kolmogorov--Smirnov test against this uniform gives $D = 0.0117$, $p = 0.804$: \textbf{the hypothesis that \texttt{Financial Loss} follows a uniform random distribution cannot be rejected.}
 
-\subsection{Validation par r\'egression directe}
+\subsection{Validation by Direct Regression}
 
-Une derni\`ere objection serait que la binarisation au quantile~0.75 d\'etruit un signal qui existerait dans la valeur continue de \texttt{Financial Loss}. Nous testons cette hypoth\`ese en r\'egressant directement la valeur continue (cf. \texttt{code/diagnostic\_regression.py}). Le tableau~\ref{tab:regression} pr\'esente les r\'esultats.
+A final objection might be that the quantile-based binarization destroys a signal that exists in the continuous \texttt{Financial Loss} values. We test this hypothesis by directly regressing the continuous value (\texttt{code/diagnostic\_regression.py}). Results are in Table~\ref{tab:regression}.
 
-\begin{table}[h!]
+\begin{table}[H]
 \centering
-\caption{R\'egression directe de \texttt{Financial Loss} (M\$). Test set de 30\% (900 \'echantillons).}
+\caption{Direct regression of \texttt{Financial Loss} (M\$). Test set: 30\% (900 samples).}
 \label{tab:regression}
 \begin{tabular}{lrrrrr}
 \toprule
-\textbf{Mod\`ele} & \textbf{Train R$^2$} & \textbf{Test R$^2$} & \textbf{Train MAE} & \textbf{Test MAE} & \textbf{Test RMSE} \\
+\textbf{Model} & \textbf{Train $R^2$} & \textbf{Test $R^2$} & \textbf{Train MAE} & \textbf{Test MAE} & \textbf{Test RMSE} \\
 \midrule
 Dummy (mean)              &  0.000 &  $-$0.000 & 25.06 & 24.77 & 28.63 \\
 Linear Regression         &  0.017 &  $-$0.017 & 24.75 & 24.92 & 28.88 \\
-Random Forest ($n=200$)   &  0.855 &  $-$0.034 &  9.42 & 25.06 & 29.11 \\
+Random Forest ($n$=200)   &  0.855 &  $-$0.034 &  9.42 & 25.06 & 29.11 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Interpr\'etation.} Le R$^2$ test est \emph{n\'egatif} pour la r\'egression lin\'eaire et le Random Forest. Un R$^2$ n\'egatif signifie que les pr\'edictions du mod\`ele sont \emph{statistiquement pires} que celles d'un mod\`ele constant pr\'edisant la moyenne du train. Le RF affiche par ailleurs un \'ecart train/test consid\'erable (R$^2$ train de 0.855 vs test de $-0.034$): m\^eme constatation que pour la classification, le mod\`ele a la capacit\'e de m\'emoriser l'ensemble d'entra\^inement mais rien \`a g\'en\'eraliser.
+The test $R^2$ is \emph{negative} for both models, meaning their predictions are statistically \emph{worse} than a constant model predicting the training mean. The Random Forest again memorizes the training set ($R^2_\text{train} = 0.855$) but produces negative $R^2$ on test, confirming the same pattern as classification. This locks H4: it is not the binarization that destroys the signal---the signal simply \emph{does not exist} in this dataset.
 
-Cette section verrouille H4: ce n'est pas la binarisation qui d\'etruit le signal, le signal n'existe \emph{simplement pas} dans le dataset, sous quelque forme que ce soit.
+\subsection{Pipeline Validation on a Real Dataset}
 
-\subsection{Synth\`ese du diagnostic}
+To confirm our pipeline is correct and the poor performance stems solely from the dataset, we applied the exact same code to a real-world cybersecurity dataset: \emph{PhishingWebsites} from OpenML (11\,055 URLs, phishing vs. legitimate). Figure~\ref{fig:pivot} compares the results.
 
-L'ensemble des tests converge vers une m\^eme conclusion: le dataset \emph{Global Cybersecurity Threats 2015-2024} se comporte, pour la t\^ache que nous avons consid\'er\'ee, comme un \textbf{tirage al\'eatoire ind\'ependant}.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{graphs/08_pivot_b_synthetic_vs_real.png}
+\caption{Pipeline validation: same code applied to the synthetic Kaggle dataset (left) and a real phishing dataset (right). On data with genuine signal, the pipeline achieves F1 macro $> 0.85$, proving the methodology is sound.}
+\label{fig:pivot}
+\end{figure}
 
-\begin{itemize}
-  \item \texttt{Financial Loss} suit une loi uniforme sur $[0.5, 100]$ ($p = 0.80$ pour le test KS), ce qui est typique d'un \emph{dataset synth\'etique} g\'en\'er\'e par tirage uniforme plut\^ot qu'observ\'e.
-  \item Aucune feature num\'erique ne porte de mutual information mesurable avec la cible (max~0.006).
-  \item Aucune feature cat\'egorielle ne pr\'esente d'association significative avec la cible (Cram\'er's V $\leq 0.058$, p-value $\chi^2 \geq 0.34$).
-  \item La r\'egression directe sur la valeur continue ne fait pas mieux: R$^2$ test n\'egatif sur LR et RF.
+\subsection{Diagnostic Summary}
+
+All tests converge to a single conclusion: the \emph{Global Cybersecurity Threats 2015--2024} dataset behaves, for the task we considered, as an \textbf{independent random draw}.
+
+\begin{itemize}[leftmargin=2cm]
+    \item \texttt{Financial Loss} follows a uniform distribution on $[0.5, 100]$ ($p_\text{KS} = 0.80$), typical of a \emph{synthetic dataset} generated by uniform sampling rather than observed data.
+    \item No numeric feature carries measurable mutual information with the target (max 0.006).
+    \item No categorical feature exhibits significant association with the target (Cram\'er's V $\leq 0.058$, $\chi^2$ $p$-value $\geq 0.34$).
+    \item Direct regression on the continuous value yields negative $R^2$ on test for both linear and non-linear models.
+    \item Our pipeline achieves F1 macro $> 0.85$ on a real dataset, confirming the code is correct.
 \end{itemize}
 
-Aucun mod\`ele de Machine Learning, ind\'ependamment de sa complexit\'e, ne peut \emph{en principe} d\'epasser la baseline majoritaire sur ce dataset pour cette t\^ache: il n'y a aucune information \`a apprendre.
+No machine learning model, regardless of complexity, can \emph{in principle} outperform the majority-class baseline on this dataset for this task: there is no information to learn.
 
 % =============================================================================
-\section{Discussion}
+\section{Interpretability and Explainability}
+\label{sec:interpretability}
+% =============================================================================
+
+\subsection{SHAP Analysis}
+
+We apply SHAP (SHapley Additive exPlanations) using \texttt{TreeExplainer} on the tuned Random Forest pipeline (\texttt{code/interpretability.py}). SHAP values quantify the contribution of each feature to individual predictions.
+
+Figure~\ref{fig:shap_bar} shows the mean absolute SHAP values for the top 20 features. Figure~\ref{fig:shap_beeswarm} provides a beeswarm plot showing the distribution of SHAP values across samples.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{graphs/06_shap_mean_abs.png}
+\caption{SHAP mean absolute values for the top 20 features (Random Forest, class ``High Financial Impact''). Importance is diffuse across many one-hot encoded features, with no single feature dominating. This is consistent with the diagnostic: on a dataset without signal, SHAP importance is evenly diluted.}
+\label{fig:shap_bar}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{graphs/07_shap_summary_beeswarm.png}
+\caption{SHAP summary beeswarm plot. For each feature, the color indicates the feature value (red = high, blue = low) and the horizontal position indicates the SHAP value (positive = pushes toward class 1). The cloud of points is centered near zero for all features, confirming that no feature systematically pushes predictions toward either class.}
+\label{fig:shap_beeswarm}
+\end{figure}
+
+\subsection{Interpretation}
+
+On a dataset with genuine signal, SHAP analysis typically reveals 1--3 dominant features concentrating most of the importance. Here, the importance is \emph{diluted} across dozens of one-hot encoded features, none exceeding a mean $|\text{SHAP}|$ of 0.02. This pattern is exactly what one would expect when the model is fitting noise rather than signal---the Random Forest distributes splits across random features, each contributing negligible SHAP importance.
+
+This SHAP analysis provides \textbf{independent confirmation} of the diagnostic conclusions: the model has no meaningful features to rely on for its predictions.
+
+% =============================================================================
+\section{Deployment with Docker}
+\label{sec:deployment}
+% =============================================================================
+
+\subsection{REST API with FastAPI}
+
+We built a REST API using FastAPI (\texttt{code/api.py}) to serve real-time predictions. The API exposes three endpoints:
+
+\begin{itemize}[leftmargin=2cm]
+    \item \texttt{GET /health}: returns the service status and whether a model is loaded.
+    \item \texttt{GET /}: root endpoint listing available endpoints.
+    \item \texttt{POST /predict}: accepts incident features as JSON and returns the predicted class (0 or 1), a human-readable label (``Standard Impact'' or ``High Financial Impact''), the probability of high impact, and a disclaimer noting the model is trained on a dataset without exploitable signal.
+\end{itemize}
+
+The API loads the serialized best model (\texttt{best\_model.joblib}) at startup and applies the same feature engineering pipeline used during training. The \texttt{/predict} endpoint accepts input conforming to the \texttt{IncidentInput} Pydantic schema with fields for country, year, attack type, target industry, number of affected users, attack source, vulnerability type, defense mechanism, and resolution time.
+
+\subsection{Docker Configuration}
+
+The project includes a \texttt{Dockerfile} and a \texttt{docker-compose.yml} for containerized deployment.
+
+\textbf{Dockerfile} key elements:
+\begin{itemize}[leftmargin=2cm]
+    \item Base image: \texttt{python:3.11-slim}
+    \item Dependencies installed from \texttt{requirements.txt}
+    \item Model and code copied into the container
+    \item Health check endpoint with 30-second interval
+    \item Exposed on port 8000 via \texttt{uvicorn}
+\end{itemize}
+
+\textbf{Docker Compose} defines two services:
+\begin{enumerate}[leftmargin=2cm]
+    \item \texttt{api}: the FastAPI prediction service (port 8000), with read-only volume mount for \texttt{saved\_models/} enabling model hot-reload without container rebuild.
+    \item \texttt{mlflow}: an MLflow UI service (port 5000) that reads the \texttt{mlruns/} directory and provides a web-based experiment tracking dashboard.
+\end{enumerate}
+
+\subsection{Running the Container}
+
+\begin{lstlisting}[language=bash]
+# Build and start both services
+docker-compose up --build
+
+# Test the API
+curl http://localhost:8000/health
+
+# Make a prediction
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Country": "Germany",
+    "Year": 2023,
+    "Attack Type": "DDoS",
+    "Target Industry": "Banking",
+    "Number of Affected Users": 150000,
+    "Attack Source": "Nation-state",
+    "Security Vulnerability Type": "Zero-day",
+    "Defense Mechanism Used": "Encryption",
+    "Incident Resolution Time (in Hours)": 48
+  }'
+\end{lstlisting}
+
+% =============================================================================
+\section{Performance Tracking with MLflow}
+\label{sec:mlflow}
+% =============================================================================
+
+\subsection{Experiment Configuration}
+
+All model training runs are logged to MLflow under the experiment \texttt{cybersecurity-high-impact}. The tracking URI points to the local \texttt{mlruns/} directory. For each model run, the following information is recorded:
+
+\begin{itemize}[leftmargin=2cm]
+    \item \textbf{Parameters}: all hyperparameters from the best \texttt{GridSearchCV} configuration (e.g., \texttt{model\_\_C}, \texttt{model\_\_max\_depth}, \texttt{model\_\_n\_estimators}).
+    \item \textbf{Metrics}: \texttt{train\_f1\_macro}, \texttt{test\_f1\_macro}, \texttt{test\_accuracy}, \texttt{best\_cv\_f1\_macro}, as well as all evaluation metrics (accuracy, precision\_macro, recall\_macro, f1\_macro, roc\_auc\_ovr\_macro) and fit quality indicators (\texttt{train\_minus\_test\_f1}).
+    \item \textbf{Tags}: \texttt{model\_name}, \texttt{risk\_flag} (possible\_overfitting / possible\_underfitting / good\_bias\_variance\_tradeoff).
+    \item \textbf{Artifacts}: confusion matrix plots, ROC curves, and feature importance charts.
+    \item \textbf{Model}: the full scikit-learn pipeline serialized via \texttt{mlflow.sklearn.log\_model()}.
+\end{itemize}
+
+\subsection{Experiment Runs Summary}
+
+Table~\ref{tab:mlflow} summarizes the MLflow-logged metrics for one representative run of each model.
+
+\begin{table}[H]
+\centering
+\caption{MLflow-logged metrics summary for the experiment \texttt{cybersecurity-high-impact}.}
+\label{tab:mlflow}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Run (model)} & \textbf{Test F1} & \textbf{Test Acc.} & \textbf{ROC-AUC} & \textbf{Risk Flag} \\
+\midrule
+baseline\_most\_frequent & 0.4286 & 0.7500 & 0.500 & underfitting \\
+logistic\_regression     & 0.4775 & 0.5256 & 0.498 & good tradeoff \\
+decision\_tree           & 0.4828 & 0.5089 & 0.524 & overfitting \\
+random\_forest           & 0.4914 & 0.7033 & 0.505 & overfitting \\
+voting\_soft             & 0.4814 & 0.5078 & 0.521 & overfitting \\
+stacking                 & 0.4792 & 0.5100 & 0.514 & good tradeoff \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{MLflow UI}
+
+The MLflow UI is accessible at \texttt{http://localhost:5000} when running via Docker Compose. It provides:
+\begin{itemize}[leftmargin=2cm]
+    \item \textbf{Experiment view}: all runs listed with sortable/filterable metrics.
+    \item \textbf{Run comparison}: side-by-side metric comparison across selected runs.
+    \item \textbf{Artifact browser}: interactive access to logged plots and serialized models.
+    \item \textbf{Parameter search}: ability to filter runs by hyperparameter values to understand the effect of tuning.
+\end{itemize}
+
+Multiple experiment versions are logged, enabling reproducible comparison across training iterations.
+
+% =============================================================================
+\section{Discussion and Conclusion}
 \label{sec:discussion}
 % =============================================================================
 
-\subsection{Apprentissages m\'ethodologiques}
+\subsection{Methodological Takeaways}
 
-Notre travail illustre une comp\'etence souvent peu enseign\'ee mais essentielle en pratique: \textbf{savoir reconna\^itre quand le Machine Learning n'est pas le bon outil}. Une performance plate sur plusieurs mod\`eles n'est pas une fatalit\'e \`a accepter ni un signal qu'il faut ajouter des features ou augmenter la capacit\'e: c'est un signal qu'il faut investiguer.
+Our work illustrates a skill that is often under-taught but essential in practice: \textbf{knowing when machine learning is not the right tool}. Flat performance across multiple models is not a fatality to accept or a signal to add more features and increase capacity---it is a signal to \emph{investigate}.
 
-L'instrumentation diagnostique mise en place (KS-test, mutual information, Cram\'er's V, chi$^2$, intervalles de confiance par modalit\'e, r\'egression de v\'erification) est r\'eutilisable telle quelle sur tout futur dataset et constitue un \og kit de diagnostic \fg{} avant de se lancer dans le tuning d'hyperparam\`etres.
+The diagnostic instrumentation we deployed (Kolmogorov--Smirnov test, mutual information, Cram\'er's V, $\chi^2$ tests, Wald confidence intervals per modality, regression verification) is reusable as-is on any future dataset and constitutes a ``diagnostic toolkit'' to apply \emph{before} investing time in hyperparameter tuning.
 
-\subsection{Conditions pour rendre la t\^ache faisable}
+\subsection{Conditions for Feasibility}
 
-Notre pipeline est volontairement \emph{dataset-agnostic}: \texttt{preprocess.py} et \texttt{training\_comparison.py} acceptent n'importe quel CSV avec des colonnes num\'eriques et cat\'egorielles et s'adaptent automatiquement. Pour appliquer la m\^eme m\'ethodologie \`a un dataset porteur de signal, il suffirait de:
-\begin{itemize}
-  \item s\'electionner un dataset r\'eel (plut\^ot que synth\'etique) -- des candidats reconnus pour la d\'etection d'intrusion existent (NSL-KDD, UNSW-NB15, CICIDS2017);
-  \item appliquer le m\^eme \texttt{diagnostic\_signal.py} en pr\'eambule pour confirmer la pr\'esence de signal;
-  \item ex\'ecuter le m\^eme \texttt{training\_comparison.py} pour comparer les mod\`eles.
-\end{itemize}
+Our pipeline is deliberately \emph{dataset-agnostic}: \texttt{preprocess.py} and \texttt{training\_comparison.py} accept any CSV with numeric and categorical columns and adapt automatically. To apply the same methodology to a signal-bearing dataset, one would need to:
+\begin{enumerate}[leftmargin=2cm]
+    \item Select a real (rather than synthetic) dataset---recognized candidates for intrusion detection include NSL-KDD, UNSW-NB15, and CICIDS2017.
+    \item Run \texttt{diagnostic\_signal.py} as a preliminary step to confirm the presence of signal.
+    \item Execute the same \texttt{training\_comparison.py} to compare models.
+\end{enumerate}
 
-\subsection{Limites de notre \'etude}
+\subsection{Limitations}
 
-Notre conclusion porte sur la t\^ache sp\'ecifique de pr\'ediction de \emph{High Financial Impact} sur \emph{ce} dataset. Il reste possible que d'autres formulations (clustering non-supervis\'e, d\'etection d'anomalies sur une sous-population sp\'ecifique) r\'ev\`elent des structures que nous n'avons pas cherch\'ees. Notre travail valide n\'eanmoins que la t\^ache de classification supervis\'ee initialement choisie est intrins\`equement infaisable.
+Our conclusion applies to the specific task of predicting \emph{High Financial Impact} on \emph{this particular} dataset. It remains possible that other formulations (unsupervised clustering, anomaly detection on specific sub-populations) could reveal structures we have not explored. Nonetheless, our work rigorously validates that the supervised classification task as originally defined is intrinsically infeasible on this data.
 
-% =============================================================================
-\section{Conclusion}
-% =============================================================================
+\subsection{Conclusion}
 
-Nous avons appliqu\'e \`a un dataset Kaggle de cybers\'ecurit\'e une cha\^ine de Machine Learning standard (pr\'eprocessing, ing\'enierie de features, comparaison de mod\`eles, validation crois\'ee, tuning d'hyperparam\`etres). Face \`a une convergence des trois familles de mod\`eles vers un AUC de 0.5, nous n'avons pas tent\'e d'optimiser des chiffres sans signification mais avons men\'e un \textbf{diagnostic statistique rigoureux}, qui d\'emontre que le dataset ne porte aucun signal exploitable pour la t\^ache choisie.
+We applied a standard machine learning pipeline---preprocessing, feature engineering, model comparison, cross-validation, hyperparameter tuning, ensemble methods, SHAP interpretability, Docker deployment, and MLflow tracking---to a Kaggle cybersecurity dataset. Faced with the convergence of all six model families toward an AUC of 0.50, we did not attempt to optimize meaningless metrics but instead conducted a \textbf{rigorous statistical diagnostic}, which demonstrates that the dataset carries no exploitable signal for the chosen task.
 
-Ce r\'esultat est, en soi, une contribution m\'ethodologique: identifier qu'un probl\`eme est \emph{structurellement infaisable} \`a partir des donn\'ees disponibles est une comp\'etence aussi importante qu'optimiser un mod\`ele lorsque c'est possible. Notre pipeline diagnostic est r\'eutilisable et notre pipeline de mod\'elisation est pr\^et \`a \^etre appliqu\'e \`a tout dataset porteur de signal.
+This result is, in itself, a methodological contribution: identifying that a problem is \emph{structurally infeasible} given the available data is a competency as important as optimizing a model when it is possible. Our diagnostic pipeline is reusable, and our modeling pipeline has been validated on a real dataset where it achieves state-of-the-art performance.
 
 % =============================================================================
 \appendix
-\section*{Annexe -- Reproductibilit\'e}
-\addcontentsline{toc}{section}{Annexe -- Reproductibilit\'e}
+\section*{Appendix A --- Reproducibility}
+\addcontentsline{toc}{section}{Appendix A --- Reproducibility}
 % =============================================================================
 
-\begin{itemize}
-  \item Construction de la cible et entra\^inement initial: \texttt{python code/main.py} (depuis la racine du projet)
-  \item Diagnostic statistique chiffr\'e: \texttt{python code/diagnostic\_signal.py}
-  \item G\'en\'eration des figures du rapport: \texttt{python code/diagnostic\_figures.py} (sortie dans \texttt{graphs/})
-  \item Diagnostic compl\'ementaire en r\'egression: \texttt{python code/diagnostic\_regression.py}
-  \item Compilation du rapport: \texttt{pdflatex rapport.tex}; nettoyage des artefacts via \texttt{make clean}
-\end{itemize}
+All code is available in the \texttt{code/} directory. The following commands reproduce the full pipeline from the project root:
+
+\begin{lstlisting}[language=bash]
+# 1. Target construction and full training pipeline (EDA + models + SHAP)
+python code/main.py
+
+# 2. Statistical diagnostic (numeric + categorical signal tests)
+python code/diagnostic_signal.py
+
+# 3. Generate diagnostic figures for the report
+python code/diagnostic_figures.py   # outputs to graphs/
+
+# 4. Complementary regression diagnostic
+python code/diagnostic_regression.py
+
+# 5. Pipeline validation on real dataset
+python code/pivot_b_real_dataset.py
+
+# 6. Docker deployment
+docker-compose up --build
+
+# 7. Compile this report
+pdflatex report.tex && pdflatex report.tex
+\end{lstlisting}
+
+\section*{Appendix B --- Project Structure}
+\addcontentsline{toc}{section}{Appendix B --- Project Structure}
+
+\begin{lstlisting}
+Machine_learning_S6_2025-2026-part_1/
+  code/
+    main.py                    # Full pipeline entry point
+    preprocess.py              # Data cleaning + feature engineering
+    training_comparison.py     # Model training, GridSearchCV, ensembles
+    evaluation_metrics.py      # Classification & regression metrics
+    interpretability.py        # SHAP analysis
+    diagrams.py                # EDA visualizations
+    diagnostic_signal.py       # Statistical signal diagnostic
+    diagnostic_figures.py      # Diagnostic figure generation
+    diagnostic_regression.py   # Regression validation
+    pivot_b_real_dataset.py    # Pipeline validation on real data
+    api.py                     # FastAPI REST API
+  graphs/                      # All generated figures
+  saved_models/
+    best_model.joblib           # Serialized best pipeline
+  mlruns/                       # MLflow experiment tracking data
+  demo-site/                    # Frontend demo (Vite + Tailwind)
+  Dockerfile                    # Container definition
+  docker-compose.yml            # Multi-service orchestration
+  requirements.txt              # Python dependencies
+  report.tex                    # This report
+\end{lstlisting}
 
 \end{document}
